@@ -1,0 +1,53 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...
+      - name: go build
+        run: go build ./...
+
+  loc-budget:
+    name: LOC budget (< 500 Go LOC excl. tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cloc
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cloc
+      - name: Count Go LOC excluding tests
+        run: |
+          set -euo pipefail
+          # Count only non-test .go files. cloc's --not-match-f rejects test
+          # files at the per-file level.
+          loc=$(cloc --quiet --include-lang=Go --not-match-f='_test\.go$' --json . | \
+            jq '.Go.code // 0')
+          echo "Go LOC (excl. tests): $loc"
+          if [ "$loc" -ge 500 ]; then
+            echo "::error::Plugin LOC budget exceeded — got $loc, must stay < 500 (PRD §664 / plugin-contract §671)"
+            exit 1
+          fi
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build image
+        run: docker build -t betterdo-plugin-gitlab:ci .

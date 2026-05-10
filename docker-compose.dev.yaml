@@ -1,0 +1,35 @@
+# Development Compose snippet for the BetterDo reference plugin.
+#
+# Run BetterDo first (from its own monorepo) so the `betterdo_plugin-net`
+# network exists, then `docker compose -f docker-compose.dev.yaml up` here.
+#
+# Network membership: `plugin-net` ONLY. Per docs/plugin-contract.md §10
+# the plugin MUST NOT join BetterDo's `default` network (which has
+# Postgres / Redis / Keycloak / MinIO).
+#
+# BETTERDO_PLUGIN_GITLAB_USER_MAP is a JSON object mapping GitLab usernames
+# to BetterDo user UUIDs. The operator wires the mapping; v1 plugin doesn't
+# do user discovery.
+
+services:
+  betterdo-plugin-gitlab:
+    build: .
+    image: betterdo-plugin-gitlab:dev
+    environment:
+      BETTERDO_API_URL: "http://betterdo-api:8080"
+      # Replace alice-uuid with a real BetterDo user UUID; the user must
+      # be subscribed to the plugin via Settings → Connections.
+      BETTERDO_PLUGIN_GITLAB_USER_MAP: '{"alice": "alice-uuid"}'
+    networks:
+      - plugin-net
+    ports:
+      - "8090:8090"
+
+networks:
+  # The BetterDo monorepo's docker-compose.yaml declares this network
+  # (Story 15.4). Joining it as `external: true` lets the plugin reach
+  # `http://betterdo-api:8080` while staying isolated from PG / Redis /
+  # Keycloak / MinIO on BetterDo's `default` network.
+  plugin-net:
+    external: true
+    name: betterdo_plugin-net
