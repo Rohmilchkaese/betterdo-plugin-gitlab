@@ -7,7 +7,8 @@
 FROM golang:1.23-alpine AS build
 WORKDIR /src
 COPY go.mod ./
-RUN go mod download || true
+# Zero third-party deps — go.sum doesn't exist, go mod download is a no-op.
+RUN go mod download
 COPY main.go ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/plugin -ldflags='-s -w' .
 
